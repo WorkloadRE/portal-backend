@@ -399,6 +399,13 @@ const config: AppConfig = {
       },
       custom_AVM_field: process.env["BOSS_CUSTOM_AVM_FIELD"] as CustomBossField | undefined
    },
+   activecampaign: {
+      enabled: process.env["ACTIVECAMPAIGN_ENABLED"] !== "false",
+      base_url: process.env["ACTIVECAMPAIGN_API_URL"] || "",
+      api_key: process.env["ACTIVECAMPAIGN_API_KEY"] || "",
+      list_id: process.env["ACTIVECAMPAIGN_LIST_ID"] || "",
+      default_state_code: process.env["ACTIVECAMPAIGN_STATE_CODE"] || "TX"
+   },
    ngrok: {
       authtoken: process.env["NGROK_AUTHTOKEN"] || ""
    },

@@ -19,17 +19,26 @@ debug(`Starting server with config:`, config);
 http.createServer(app.callback()).listen(config.app.port, () => {
    logger.info(`Server is running on port ${config.app.port}`);
 });
-const webhook = container.resolve(BossWebhooksService);
-await webhook.installHooks();
-process.on("SIGINT", () => {
-   logger.info("Shutting down");
-   webhook.uninstallHooks().finally(() => {
+
+// FUB webhook installer — only run if BOSS_ENABLED. Bruno Fine Properties
+// runs with BOSS_ENABLED=false (ActiveCampaign is the primary CRM), so this
+// entire block is a no-op in production.
+let webhook: BossWebhooksService | undefined;
+if (config.boss.enabled && config.boss.webhook.enabled) {
+   webhook = container.resolve(BossWebhooksService);
+   await webhook.installHooks();
+   logger.info("BossWebhooksService: hooks installed");
+} else {
+   logger.info("BossWebhooksService: skipped (boss.enabled=%s webhook.enabled=%s)", config.boss.enabled, config.boss.webhook.enabled);
+}
+
+const shutdown = (signal: string) => {
+   logger.info(`Shutting down (${signal})`);
+   if (webhook) {
+      webhook.uninstallHooks().finally(() => process.exit(0));
+   } else {
       process.exit(0);
-   });
-});
-process.on("SIGTERM", () => {
-   logger.info("Shutting down");
-   webhook.uninstallHooks().finally(() => {
-      process.exit(0);
-   });
-});
+   }
+};
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));

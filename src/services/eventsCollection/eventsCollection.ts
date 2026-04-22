@@ -1,6 +1,7 @@
 import { injectable, inject } from "tsyringe";
 import _debug from "debug";
 import BossService, { BossEventsCreateRequest, BossNoteCreateRequest } from "../boss.js";
+import ActiveCampaignService from "../activecampaign.js";
 import type { AppConfig } from "config.js";
 import { Context } from "koa";
 import UserService from "../../services/user.js";
@@ -9,15 +10,19 @@ export type EventsCollectionPropertiesSelector = (ctx: Context) => Promise<BossE
 export type NotesCollectionPropertiesSelector = (ctx: Context) => Promise<BossNoteCreateRequest | null>;
 @injectable()
 export default class EventsCollectionService {
-   constructor(private boss: BossService, private userService: UserService, @inject("config")
-   private config: AppConfig) {}
+   constructor(
+      private boss: BossService,
+      private activecampaign: ActiveCampaignService,
+      private userService: UserService,
+      @inject("config") private config: AppConfig
+   ) {}
    eventsCreate(params: Partial<BossEventsCreateRequest>) {
       const {
          ignoreDefaultTags,
          ...rest
       } = params;
       debug("[reportEvent] params %O", params);
-      this.boss.eventsCreate({
+      const enrichedParams = {
          ...this.config.eventsCollection.defaultEventFields,
          ...rest,
          person: {
@@ -25,11 +30,23 @@ export default class EventsCollectionService {
             ...this.assignAgent(params.person),
             tags: ignoreDefaultTags ? params.person?.tags : this.assignTags(params.person)
          }
-      }).then(r => {
-         debug("[reportEvent] succeed %O", r);
-      }).catch(e => {
-         debug("[reportEvent] error %O", e);
+      };
+
+      // Fire to ActiveCampaign — primary CRM for Bruno Fine Properties.
+      // Fire-and-forget: AC failures must not break user-facing flows.
+      this.activecampaign.pushEvent(enrichedParams).catch(e => {
+         debug("[reportEvent] AC error %O", e);
       });
+
+      // Fire to Follow Up Boss — only if still enabled (legacy code path).
+      // BOSS_ENABLED=false in prod env disables this at the client level.
+      if (this.config.boss.enabled) {
+         this.boss.eventsCreate(enrichedParams).then(r => {
+            debug("[reportEvent] succeed %O", r);
+         }).catch(e => {
+            debug("[reportEvent] error %O", e);
+         });
+      }
    }
    async noteCreate(params: BossNoteCreateRequest) {
       debug("[noteCreate] params %O", params);
