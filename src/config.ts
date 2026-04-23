@@ -142,6 +142,13 @@ export interface AppConfig {
       };
       custom_AVM_field?: CustomBossField | undefined;
    };
+   activecampaign: {
+      enabled: boolean;
+      base_url: string;
+      api_key: string;
+      list_id: string;
+      default_state_code: string;
+   };
    ngrok: {
       authtoken: string;
    };

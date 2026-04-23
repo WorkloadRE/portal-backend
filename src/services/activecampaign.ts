@@ -198,15 +198,18 @@ export default class ActiveCampaignService {
       body?: unknown
    ): Promise<T> {
       const url = `${this.config.activecampaign.base_url.replace(/\/$/, "")}${path}`;
-      const res = await fetch(url, {
+      const init: RequestInit = {
          method,
          headers: {
             "Api-Token": this.config.activecampaign.api_key,
             "Content-Type": "application/json",
             Accept: "application/json"
-         },
-         body: body ? JSON.stringify(body) : undefined
-      });
+         }
+      };
+      if (body !== undefined) {
+         init.body = JSON.stringify(body);
+      }
+      const res = await fetch(url, init);
       if (!res.ok) {
          const txt = await res.text().catch(() => "");
          throw new Error(`AC ${method} ${path} -> ${res.status}: ${txt.slice(0, 500)}`);
