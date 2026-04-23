@@ -124,7 +124,7 @@
       "check-dot-env": "[[ ! -z \"$DOT_ENV_CONFIG\" ]] || DOT_ENV_CONFIG=.env; echo \"Using $DOT_ENV_CONFIG\"",
       "knex": "cross-env NODE_OPTIONS='--import ./src/ts-loader.js' knex --knexfile ./src/knexfile.ts",
       "knex:prod": "knex --knexfile ./dist/knexfile.js",
-      "db:migrate:prod": "[ \"$APP_DISABLE_PERSISTENCE\" = \"true\" ] && echo \"Skipping migration\" && exit 0; [ -z \"$APP_DISABLE_PERSISTENCE\" ] || [ \"$APP_DISABLE_PERSISTENCE\" = \"false\" ] && npm run db:jsts_check && npm run knex:prod migrate:latest",
+      "db:migrate:prod": "[ \"$APP_DISABLE_PERSISTENCE\" = \"true\" ] && echo \"Skipping migration\" && exit 0; [ -z \"$APP_DISABLE_PERSISTENCE\" ] || [ \"$APP_DISABLE_PERSISTENCE\" = \"false\" ] && npm run knex:prod migrate:latest",
       "db:migrate": "npm run knex migrate:latest",
       "db:migrate:test": "cross-env DB_PORT=5555 DOT_ENV_CONFIG=test.env npm run knex migrate:latest",
       "jwt:generate": "echo 'generating keys' && mkdir keys && openssl genrsa -out keys/private.pem 2048 && openssl rsa -in keys/private.pem -pubout -out keys/public.pem"
