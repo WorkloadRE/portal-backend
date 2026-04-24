@@ -1,13 +1,13 @@
 import { DeepPartial } from "../lib/settings.js";
 import { AppConfig } from "../config.js";
 
-// Benton County, AR, USA - starting point in the middle of the US
+// Spring, TX — Bruno Fine Properties service area
 const proximitySearchConfig = {
-   lat: "36.489108",
-   long: "-94.540129",
-   radius_m: 150_000_000
+   lat: "30.0799",
+   long: "-95.4172",
+   radius_m: 80_000 // ~50 miles around Spring, TX
 };
-const boardId = 110; // Sample Data board
+const boardId = 147; // HAR — Houston Association of Realtors
 
 // just follow the AppConfig structure
 export default {
@@ -40,7 +40,7 @@ export default {
       }
    },
    app: {
-      disable_persistence: true,
+      disable_persistence: false, // Enable database for saved searches, favorites, user accounts
       useSwagger: false,
       loglevel: "info",
       stats_top_n: 100
@@ -75,21 +75,20 @@ export default {
          language: "en",
          limit: 10,
          max_distance: proximitySearchConfig.radius_m,
-         region_code: undefined,
-         // no filtering by default
-         jaro_winkler_distance: 0.95 // you can override even those settings which are not possible to define via ENV
+         region_code: "US-TX", // Bias results toward Texas
+         jaro_winkler_distance: 0.95
       }
    },
    boss: {
-      enabled: false
+      enabled: false // Follow Up Boss disabled — using ActiveCampaign instead
    },
    eventsCollection: {
       defaultEventFields: {
-         // source: "localhost",
+         source: "brunofineproperties.com",
       },
       defaultPersonFields: {
-         // assignedTo: "Joe Doe",
-         // tags: ["estimates", "localhost"],
+         // tags applied to all leads
+         tags: ["Source-BrunoFineProperties-IDX"],
       },
       propertyUrl: "/listing/[MLS_NUMBER]?boardId=[BOARD_ID]",
       clientUrl: "/agent/client/[CLIENT_ID]",
@@ -109,7 +108,7 @@ export default {
       },
       locations: {
          drop_coordinates: true,
-         allow_all_areas: false,
+         allow_all_areas: true, // flat endpoint already filters to US/TX; no area allowlist needed
          allowed_areas: [],
          boardId: boardId,
          active_count_limit: 5
@@ -117,7 +116,6 @@ export default {
       hide_unavailable_listings_statuses: ["Ter", "Exp"],
       hide_unavailable_listings_http_code: 410,
       validationVersion: "",
-      // fixme: no default in config
       extended_property_details: true
    }
 } as DeepPartial<AppConfig>; // only for convenience when manually editing

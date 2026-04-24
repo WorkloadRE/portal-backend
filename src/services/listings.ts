@@ -302,63 +302,13 @@ export default class ListingsService {
          dropCoordinates,
          ...repliersParams
       } = params;
-      const locations = await this.repliers.listings.locations({
-         ...repliersParams
-      });
-      if (!locations.boards.length) {
-         // /listings/locations not provisioned for this board; fall back to flat /locations endpoint
-         debug("[ListingsService: locations]: boards empty, falling back to flat /locations endpoint for boardId=%d", repliersParams.boardId ?? config.settings.locations.boardId);
-         const boardId = repliersParams.boardId ?? config.settings.locations.boardId;
-         const flat = await this.fetchAllFlatLocations(boardId);
-         return this.buildLocationsFromFlat(flat, boardId);
-      }
-      this.removeExtraBoards(locations);
-
-      // by ref
-      const allCondoAreas = -1 < locationClassIdx(locations, RplClass.condo) ? locationAreas(locations, RplClass.condo) : [];
-      const allResidentalAreas = -1 < locationClassIdx(locations, RplClass.residential) ? locationAreas(locations, RplClass.residential) : [];
-      if (!allCondoAreas.length || !allResidentalAreas.length) {
-         return locations;
-      }
-      const condoAreas = allowedAreas(allCondoAreas);
-      const residentalAreas = allowedAreas(allResidentalAreas);
-      for (const area of condoAreas) {
-         if (this.areaExist(area.name, residentalAreas)) {
-            debug("Area exist: %s", area.name);
-            for (const city of area.cities) {
-               if (this.cityExist(area.name, city.name, residentalAreas)) {
-                  debug("City exist: %s, area: %s", city.name, area.name);
-                  for (const neighborhood of city.neighborhoods) {
-                     if (!this.neighborhoodExist(area.name, city.name, neighborhood.name, residentalAreas)) {
-                        this.copyNeighborhood(area.name, city.name, neighborhood, residentalAreas);
-                     }
-                  }
-               } else {
-                  debug("City not exist: %s, area: %s", city.name, area.name);
-                  this.copyCity(area.name, city, residentalAreas);
-               }
-            }
-         } else {
-            debug("Area not exist: %s", area.name);
-            this.copyArea(area, residentalAreas);
-         }
-      }
-
-      // drop condos class
-      if (-1 < locationClassIdx(locations, RplClass.condo)) {
-         locations.boards[0].classes.splice(locationClassIdx(locations, RplClass.condo), 1);
-      }
-
-      // drop extra areas
-
-      if (-1 < locationClassIdx(locations, RplClass.residential)) {
-         this.removeExtraAreas(locations, locationClassIdx(locations, RplClass.residential));
-      }
-      this.removeEmptyLocations(locations, params.activeCountLimit);
-      if (dropCoordinates) {
-         this.removeCoordinates(locations);
-      }
-      return locations;
+      // Always use the flat /locations endpoint — it includes country/state metadata
+      // which lets us reliably filter to US/TX only. The grouped /listings/locations
+      // endpoint returns international records that cannot be filtered by geography.
+      const boardId = repliersParams.boardId ?? config.settings.locations.boardId;
+      debug("[ListingsService: locations]: using flat /locations endpoint for boardId=%d", boardId);
+      const flat = await this.fetchAllFlatLocations(boardId);
+      return this.buildLocationsFromFlat(flat, boardId);
    }
    async nlp(params: RplNlpDto) {
       const result = await this.repliers.listings.nlp({
