@@ -13,7 +13,7 @@ const debug = _debug("repliers:services:listings");
 
 // HELPERS
 const allowedAreas = (areas: RplArea[]) => config.settings.locations.allow_all_areas ? areas : areas.filter(area => config.settings.locations.allowed_areas.includes(area.name.toLowerCase()));
-const locationClassIdx = (locations: RplListingsLocationsResponse, rplClass: RplClass) => locations.boards[0].classes.findIndex(cls => cls.name === rplClass);
+const locationClassIdx = (locations: RplListingsLocationsResponse, rplClass: RplClass) => locations.boards[0].classes.findIndex(cls => cls.name.toLowerCase() === rplClass.toLowerCase());
 const locationAreas = (locations: RplListingsLocationsResponse, rplClass: RplClass) => locations.boards[0].classes[locationClassIdx(locations, rplClass)]!.areas;
 @injectable()
 export default class ListingsService {
@@ -165,7 +165,7 @@ export default class ListingsService {
 
    // by ref
    private removeEmptyLocations(locations: RplListingsLocationsResponse, limit: number = 0) {
-      const residentalIdx = locations.boards[0].classes.findIndex(cls => cls.name === RplClass.residential);
+      const residentalIdx = locationClassIdx(locations, RplClass.residential);
       const residentalAreas = locations.boards[0].classes[residentalIdx]!.areas;
       for (let areaIdx = 0; areaIdx < residentalAreas.length; areaIdx++) {
          const area = residentalAreas[areaIdx]!;
