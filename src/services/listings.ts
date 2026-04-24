@@ -223,9 +223,25 @@ export default class ListingsService {
       let pageNum = 1;
       let numPages = 1;
       do {
-         const res = await this.repliers.listings.flatLocations({ boardId, resultsPerPage: 300, pageNum });
-         all.push(...res.locations);
-         numPages = res.numPages;
+         let attempts = 0;
+         while (true) {
+            try {
+               const res = await this.repliers.listings.flatLocations({ boardId, resultsPerPage: 300, pageNum });
+               all.push(...res.locations);
+               numPages = res.numPages;
+               break;
+            } catch (err: any) {
+               const status = err?.status ?? err?.response?.status;
+               if (status === 429 && attempts < 5) {
+                  const delay = Math.min(2000 * Math.pow(2, attempts), 30000);
+                  debug("fetchAllFlatLocations: 429 on page %d, retry %d after %dms", pageNum, attempts + 1, delay);
+                  await new Promise(r => setTimeout(r, delay));
+                  attempts++;
+               } else {
+                  throw err;
+               }
+            }
+         }
          pageNum++;
       } while (pageNum <= numPages);
       debug("fetchAllFlatLocations: fetched %d locations across %d pages", all.length, numPages);
