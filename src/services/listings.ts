@@ -274,7 +274,7 @@ export default class ListingsService {
             boardId,
             name: 'HAR',
             updatedOn: new Date().toISOString().slice(0, 10),
-            classes: [{ name: RplClass.residential, areas: filteredAreas }] as RplListingsLocationsResponse['boards'][0]['classes']
+            classes: [{ name: RplClass.residential, areas: filteredAreas }] as unknown as RplListingsLocationsResponse['boards'][0]['classes']
          }]
       };
    }
