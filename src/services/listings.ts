@@ -248,6 +248,8 @@ export default class ListingsService {
       return all;
    }
    private buildLocationsFromFlat(flat: RplFlatLocation[], boardId: number): RplListingsLocationsResponse {
+      // Filter to US/TX only — the flat endpoint for boardId=147 includes international records
+      flat = flat.filter(loc => loc.address.country === 'US' && loc.address.state === 'TX');
       const areasMap = new Map<string, RplArea>();
       // Pass 1: areas
       for (const loc of flat) {
