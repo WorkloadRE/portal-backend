@@ -1,7 +1,7 @@
 import { container, inject, injectable } from "tsyringe";
 import RepliersService from "./repliers.js";
 import type { RplListingsCountDto, RplListingsLocationsDto, RplListingsSearchDto, RplListingsSimilarDto, RplListingsSingleDto, RplNlpDto } from "../validate/listings.js";
-import { RplArea, RplCity, RplListingsLocationsResponse, RplListingsSingleResponse, RplNeighborhood } from "./repliers/listings.js";
+import { RplArea, RplCity, RplFlatLocation, RplListingsLocationsResponse, RplListingsSingleResponse, RplNeighborhood } from "./repliers/listings.js";
 import { RplClass, RplYesNo } from "../types/repliers.js";
 import _debug from "debug";
 import cached, { Cached } from "../lib/decorators/cached.js";
@@ -218,6 +218,66 @@ export default class ListingsService {
          }
       }
    }
+   private async fetchAllFlatLocations(boardId: number): Promise<RplFlatLocation[]> {
+      const all: RplFlatLocation[] = [];
+      let pageNum = 1;
+      let numPages = 1;
+      do {
+         const res = await this.repliers.listings.flatLocations({ boardId, resultsPerPage: 300, pageNum });
+         all.push(...res.locations);
+         numPages = res.numPages;
+         pageNum++;
+      } while (pageNum <= numPages);
+      debug("fetchAllFlatLocations: fetched %d locations across %d pages", all.length, numPages);
+      return all;
+   }
+   private buildLocationsFromFlat(flat: RplFlatLocation[], boardId: number): RplListingsLocationsResponse {
+      const areasMap = new Map<string, RplArea>();
+      // Pass 1: areas
+      for (const loc of flat) {
+         if (loc.type === 'area' && !areasMap.has(loc.name)) {
+            areasMap.set(loc.name, { name: loc.name, cities: [] });
+         }
+      }
+      // Pass 2: cities
+      for (const loc of flat) {
+         if (loc.type === 'city') {
+            if (!areasMap.has(loc.address.area)) {
+               areasMap.set(loc.address.area, { name: loc.address.area, cities: [] });
+            }
+            const area = areasMap.get(loc.address.area)!;
+            if (!area.cities.find(c => c.name === loc.name)) {
+               area.cities.push({ name: loc.name, activeCount: 999, location: { lat: 0, lng: 0 }, neighborhoods: [] });
+            }
+         }
+      }
+      // Pass 3: neighborhoods
+      for (const loc of flat) {
+         if (loc.type === 'neighborhood') {
+            if (!areasMap.has(loc.address.area)) {
+               areasMap.set(loc.address.area, { name: loc.address.area, cities: [] });
+            }
+            const area = areasMap.get(loc.address.area)!;
+            let city = area.cities.find(c => c.name === loc.address.city);
+            if (!city) {
+               city = { name: loc.address.city, activeCount: 999, location: { lat: 0, lng: 0 }, neighborhoods: [] };
+               area.cities.push(city);
+            }
+            if (!city.neighborhoods.find(n => n.name === loc.name)) {
+               city.neighborhoods.push({ name: loc.name, activeCount: 999, location: { lat: 0, lng: 0 } });
+            }
+         }
+      }
+      const filteredAreas = allowedAreas(Array.from(areasMap.values()));
+      return {
+         boards: [{
+            boardId,
+            name: 'HAR',
+            updatedOn: new Date().toISOString().slice(0, 10),
+            classes: [{ name: RplClass.residential, areas: filteredAreas }] as RplListingsLocationsResponse['boards'][0]['classes']
+         }]
+      };
+   }
    @cached("autosuggest:locations", config.cache.statswidget.ttl_ms)
    async locations(params: RplListingsLocationsDto): Promise<RplListingsLocationsResponse | Cached<RplListingsLocationsResponse>> {
       const {
@@ -228,7 +288,11 @@ export default class ListingsService {
          ...repliersParams
       });
       if (!locations.boards.length) {
-         return locations;
+         // /listings/locations not provisioned for this board; fall back to flat /locations endpoint
+         debug("[ListingsService: locations]: boards empty, falling back to flat /locations endpoint for boardId=%d", repliersParams.boardId ?? config.settings.locations.boardId);
+         const boardId = repliersParams.boardId ?? config.settings.locations.boardId;
+         const flat = await this.fetchAllFlatLocations(boardId);
+         return this.buildLocationsFromFlat(flat, boardId);
       }
       this.removeExtraBoards(locations);
 

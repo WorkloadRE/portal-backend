@@ -155,6 +155,27 @@ export interface RplListingsLocationsResponse extends ApiResponse {
       classes: [RplLocationClass<"condo">, RplLocationClass<"residential">];
    }];
 }
+export interface RplFlatLocation {
+   locationId: string;
+   name: string;
+   type: 'area' | 'city' | 'neighborhood';
+   address: {
+      state: string;
+      country: string;
+      city: string;
+      area: string;
+      neighborhood: string;
+   };
+   map?: Record<string, unknown>;
+   resource?: string;
+}
+export interface RplFlatLocationsResponse extends ApiResponse {
+   locations: RplFlatLocation[];
+   page: number;
+   numPages: number;
+   pageSize: number;
+   count: number;
+}
 export interface RplNlpResponse extends ApiResponse {
    request: {
       url?: string;
@@ -187,6 +208,9 @@ export default class RepliersListings extends RepliersBase {
    }
    public locations(params: RplListingsLocationsRequest) {
       return this.request<RplListingsLocationsResponse>("GET", `/listings/locations`, params);
+   }
+   public flatLocations(params: { boardId?: number; resultsPerPage?: number; pageNum?: number }) {
+      return this.request<RplFlatLocationsResponse>("GET", `/locations`, params);
    }
    public single(params: RplListingsSingleDto) {
       const {
