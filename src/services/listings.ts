@@ -1,8 +1,8 @@
 import { container, inject, injectable } from "tsyringe";
 import RepliersService from "./repliers.js";
 import type { RplListingsCountDto, RplListingsLocationsDto, RplListingsSearchDto, RplListingsSimilarDto, RplListingsSingleDto, RplNlpDto } from "../validate/listings.js";
-import { RplArea, RplCity, RplFlatLocation, RplListingsLocationsResponse, RplListingsSingleResponse, RplNeighborhood } from "./repliers/listings.js";
-import { RplClass, RplYesNo } from "../types/repliers.js";
+import { RplArea, RplFlatLocation, RplListingsLocationsResponse, RplListingsSingleResponse } from "./repliers/listings.js";
+import { RplYesNo } from "../types/repliers.js";
 import _debug from "debug";
 import cached, { Cached } from "../lib/decorators/cached.js";
 import { type AppConfig } from "../config.js";
@@ -13,8 +13,6 @@ const debug = _debug("repliers:services:listings");
 
 // HELPERS
 const allowedAreas = (areas: RplArea[]) => config.settings.locations.allow_all_areas ? areas : areas.filter(area => config.settings.locations.allowed_areas.includes(area.name.toLowerCase()));
-const locationClassIdx = (locations: RplListingsLocationsResponse, rplClass: RplClass) => locations.boards[0].classes.findIndex(cls => cls.name.toLowerCase() === rplClass.toLowerCase());
-const locationAreas = (locations: RplListingsLocationsResponse, rplClass: RplClass) => locations.boards[0].classes[locationClassIdx(locations, rplClass)]!.areas;
 @injectable()
 export default class ListingsService {
    constructor(private repliers: RepliersService, @inject("config")
@@ -96,126 +94,6 @@ export default class ListingsService {
       if (hiddenStatuses.includes(status)) {
          debug(`[ListingsService: single]: %0 has status %1 and cannot be returned. HiddenStatuses are %2`, listing.mlsNumber, status, hiddenStatuses);
          throw new ApiError(`Not found. ${status}`, statusCode);
-      }
-   }
-   private areaExist(area_name: string, residentalAreas: RplArea[]) {
-      return residentalAreas.find(area => area.name === area_name);
-   }
-   private cityExist(area_name: string, city_name: string, residentalAreas: RplArea[]) {
-      const areaIdx = residentalAreas.findIndex(area => area.name === area_name);
-      return residentalAreas[areaIdx]?.cities.find(city => city.name === city_name);
-   }
-   private neighborhoodExist(area_name: string, city_name: string, neighborhood_name: string, residentalAreas: RplArea[]) {
-      const area = residentalAreas.find(area => area.name === area_name);
-      const city = area?.cities.find(city => city.name === city_name);
-      return city?.neighborhoods.find(neighborhood => neighborhood.name === neighborhood_name);
-   }
-   private copyArea(area: RplArea, residentalAreas: RplArea[]) {
-      residentalAreas.push(area);
-   }
-   private copyCity(area_name: string, city: RplCity, residentalAreas: RplArea[]) {
-      const areaIdx = residentalAreas.findIndex(area => area.name === area_name);
-      residentalAreas[areaIdx]?.cities.push(city);
-   }
-   private copyNeighborhood(area_name: string, city_name: string, neighborhood: RplNeighborhood, residentalAreas: RplArea[]) {
-      const areaIdx = residentalAreas.findIndex(area => area.name === area_name);
-      if (areaIdx === undefined) {
-         return;
-      }
-      const cityIdx = residentalAreas[areaIdx]?.cities.findIndex(city => city.name === city_name);
-      if (cityIdx === undefined) {
-         return;
-      }
-      neighborhood.coordinates = null;
-      debug("Copy neighborhood, area: %s, city: %s, neighborhood: %o ", area_name, city_name, neighborhood);
-      residentalAreas[areaIdx]?.cities[cityIdx]?.neighborhoods.push(neighborhood);
-   }
-
-   // by ref
-   private removeEmptyNeighborhoods(neighborhoods: Array<RplNeighborhood>, limit: number = 0) {
-      for (let hoodIdx = 0; hoodIdx < neighborhoods.length; hoodIdx++) {
-         const hood = neighborhoods[hoodIdx]!;
-         if (hood.activeCount <= limit) {
-            debug("removing hood: %s", hood.name);
-            neighborhoods.splice(hoodIdx, 1);
-            hoodIdx -= 1;
-         }
-      }
-   }
-   private removeEmptyCities(cities: Array<RplCity>, limit: number = 0) {
-      for (let cityIdx = 0; cityIdx < cities.length; cityIdx++) {
-         const city = cities[cityIdx]!;
-         if (city.activeCount <= limit) {
-            // debug("removing city: %s", city.name);
-            cities.splice(cityIdx, 1);
-            cityIdx -= 1;
-            continue;
-         }
-         this.removeEmptyNeighborhoods(city.neighborhoods, limit);
-
-         // Drop city based only if it had only activeCount === 0 hoods
-         if (limit === 0) {
-            if (0 == city.neighborhoods.length) {
-               cities.splice(cityIdx, 1);
-               cityIdx -= 1;
-            }
-         }
-      }
-   }
-
-   // by ref
-   private removeEmptyLocations(locations: RplListingsLocationsResponse, limit: number = 0) {
-      const residentalIdx = locationClassIdx(locations, RplClass.residential);
-      const residentalAreas = locations.boards[0].classes[residentalIdx]!.areas;
-      for (let areaIdx = 0; areaIdx < residentalAreas.length; areaIdx++) {
-         const area = residentalAreas[areaIdx]!;
-         this.removeEmptyCities(area.cities, limit);
-         if (0 == area.cities.length) {
-            residentalAreas.splice(areaIdx, 1);
-            areaIdx -= 1;
-         }
-      }
-   }
-
-   // by ref
-   private removeCoordinates(locations: RplListingsLocationsResponse) {
-      const residentalAreas = locationAreas(locations, RplClass.residential);
-      for (let areaIdx = 0; areaIdx < residentalAreas.length; areaIdx++) {
-         const area = residentalAreas[areaIdx]!;
-         if (area.cities.length === 0) continue;
-         for (let cityIdx = 0; cityIdx < area.cities.length; cityIdx++) {
-            const city = area.cities[cityIdx]!;
-            city.coordinates = null;
-            if (city.neighborhoods.length === 0) continue;
-            for (let hoodIdx = 0; hoodIdx < city.neighborhoods.length; hoodIdx++) {
-               const hood = city.neighborhoods[hoodIdx]!;
-               hood.coordinates = null;
-            }
-         }
-      }
-   }
-
-   // by ref
-   private removeExtraBoards(locations: RplListingsLocationsResponse) {
-      const boards = locations.boards;
-      for (let boardIdx = 0; boardIdx < boards.length; boardIdx++) {
-         if (boards[boardIdx]!.boardId !== config.settings.locations.boardId) {
-            boards.splice(boardIdx, 1);
-            boardIdx -= 1;
-         }
-      }
-   }
-
-   // by ref
-   private removeExtraAreas(locations: RplListingsLocationsResponse, cls: number) {
-      if (config.settings.locations.allow_all_areas) return;
-      const areas = locations.boards[0].classes[cls]!.areas;
-      for (let areaIdx = 0; areaIdx < areas.length; areaIdx++) {
-         const area = areas[areaIdx]!;
-         if (!config.settings.locations.allowed_areas.includes(area.name.toLowerCase())) {
-            areas.splice(areaIdx, 1);
-            areaIdx -= 1;
-         }
       }
    }
    private async fetchAllFlatLocations(boardId: number): Promise<RplFlatLocation[]> {
@@ -308,7 +186,7 @@ export default class ListingsService {
             boardId,
             name: 'HAR',
             updatedOn: new Date().toISOString().slice(0, 10),
-            classes: [{ name: RplClass.residential, areas: filteredAreas }] as unknown as RplListingsLocationsResponse['boards'][0]['classes']
+            classes: [{ name: 'residential', areas: filteredAreas }] as unknown as RplListingsLocationsResponse['boards'][0]['classes']
          }]
       };
    }
