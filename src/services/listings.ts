@@ -257,8 +257,15 @@ export default class ListingsService {
       return all;
    }
    private buildLocationsFromFlat(flat: RplFlatLocation[], boardId: number): RplListingsLocationsResponse {
-      // Filter to US/TX only — the flat endpoint for boardId=147 includes international records
-      flat = flat.filter(loc => loc.address.country === 'US' && loc.address.state === 'TX');
+      // Filter to US/TX only. Also require non-empty area for cities/neighborhoods —
+      // some Repliers records have country=US/state=TX but blank area/city (bad geocoding
+      // on international listings). These get bucketed into area="" and pollute results.
+      flat = flat.filter(loc =>
+         loc.address.country === 'US' &&
+         loc.address.state === 'TX' &&
+         loc.name.trim() !== '' &&
+         (loc.type === 'area' || loc.address.area.trim() !== '')
+      );
       const areasMap = new Map<string, RplArea>();
       // Pass 1: areas
       for (const loc of flat) {
