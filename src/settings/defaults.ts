@@ -108,8 +108,9 @@ export default {
       },
       locations: {
          drop_coordinates: true,
-         allow_all_areas: true, // flat endpoint already filters to US/TX; no area allowlist needed
-         allowed_areas: [],
+         allow_all_areas: false,
+         // Houston MSA counties — matches Repliers area names (case-insensitive)
+         allowed_areas: ['harris', 'fort bend', 'montgomery', 'brazoria', 'galveston', 'liberty', 'chambers', 'waller'],
          boardId: boardId,
          active_count_limit: 5
       },
