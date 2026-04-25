@@ -96,42 +96,45 @@ export default class ListingsService {
          throw new ApiError(`Not found. ${status}`, statusCode);
       }
    }
-   private async fetchAllFlatLocations(boardId: number): Promise<RplFlatLocation[]> {
-      const all: RplFlatLocation[] = [];
-      let pageNum = 1;
-      let numPages = 1;
-      do {
-         let attempts = 0;
-         while (true) {
-            try {
-               // Pass state/country filters — Repliers may support them, reducing pages dramatically.
-               // buildLocationsFromFlat also post-filters to US/TX as a safety net.
-               const res = await this.repliers.listings.flatLocations({
-                  boardId,
-                  resultsPerPage: 300,
-                  pageNum,
-                  state: 'TX',
-                  country: 'US'
-               });
-               all.push(...res.locations);
-               numPages = res.numPages;
-               debug("fetchAllFlatLocations: page %d/%d, got %d locations (total %d)", pageNum, numPages, res.locations.length, all.length);
-               break;
-            } catch (err: any) {
-               const status = err?.status ?? err?.response?.status;
-               if (status === 429 && attempts < 5) {
-                  const delay = Math.min(2000 * Math.pow(2, attempts), 30000);
-                  debug("fetchAllFlatLocations: 429 on page %d, retry %d after %dms", pageNum, attempts + 1, delay);
-                  await new Promise(r => setTimeout(r, delay));
-                  attempts++;
-               } else {
-                  throw err;
-               }
+   private async fetchFlatPage(boardId: number, pageNum: number): Promise<{ locations: RplFlatLocation[]; numPages: number }> {
+      let attempts = 0;
+      while (true) {
+         try {
+            const res = await this.repliers.listings.flatLocations({
+               boardId, resultsPerPage: 300, pageNum, state: 'TX', country: 'US'
+            });
+            debug("fetchFlatPage: page %d/%d, got %d locations", pageNum, res.numPages, res.locations.length);
+            return { locations: res.locations, numPages: res.numPages };
+         } catch (err: any) {
+            const status = err?.status ?? err?.response?.status;
+            if (status === 429 && attempts < 5) {
+               const delay = Math.min(1000 * Math.pow(2, attempts), 16000);
+               debug("fetchFlatPage: 429 on page %d, retry %d after %dms", pageNum, attempts + 1, delay);
+               await new Promise(r => setTimeout(r, delay));
+               attempts++;
+            } else {
+               throw err;
             }
          }
-         pageNum++;
-      } while (pageNum <= numPages);
-      debug("fetchAllFlatLocations: fetched %d locations across %d pages total", all.length, numPages);
+      }
+   }
+   private async fetchAllFlatLocations(boardId: number): Promise<RplFlatLocation[]> {
+      // Fetch page 1 to discover numPages, then remaining pages concurrently (batches of 8)
+      const first = await this.fetchFlatPage(boardId, 1);
+      const all: RplFlatLocation[] = [...first.locations];
+      const numPages = first.numPages;
+      debug("fetchAllFlatLocations: %d total pages to fetch for boardId=%d", numPages, boardId);
+
+      if (numPages > 1) {
+         const remaining = Array.from({ length: numPages - 1 }, (_, i) => i + 2);
+         const BATCH = 8;
+         for (let i = 0; i < remaining.length; i += BATCH) {
+            const batch = remaining.slice(i, i + BATCH);
+            const results = await Promise.all(batch.map(p => this.fetchFlatPage(boardId, p)));
+            for (const r of results) all.push(...r.locations);
+         }
+      }
+      debug("fetchAllFlatLocations: fetched %d locations across %d pages", all.length, numPages);
       return all;
    }
    private buildLocationsFromFlat(flat: RplFlatLocation[], boardId: number): RplListingsLocationsResponse {
