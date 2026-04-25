@@ -226,9 +226,18 @@ export default class ListingsService {
          let attempts = 0;
          while (true) {
             try {
-               const res = await this.repliers.listings.flatLocations({ boardId, resultsPerPage: 300, pageNum });
+               // Pass state/country filters — Repliers may support them, reducing pages dramatically.
+               // buildLocationsFromFlat also post-filters to US/TX as a safety net.
+               const res = await this.repliers.listings.flatLocations({
+                  boardId,
+                  resultsPerPage: 300,
+                  pageNum,
+                  state: 'TX',
+                  country: 'US'
+               });
                all.push(...res.locations);
                numPages = res.numPages;
+               debug("fetchAllFlatLocations: page %d/%d, got %d locations (total %d)", pageNum, numPages, res.locations.length, all.length);
                break;
             } catch (err: any) {
                const status = err?.status ?? err?.response?.status;
@@ -244,7 +253,7 @@ export default class ListingsService {
          }
          pageNum++;
       } while (pageNum <= numPages);
-      debug("fetchAllFlatLocations: fetched %d locations across %d pages", all.length, numPages);
+      debug("fetchAllFlatLocations: fetched %d locations across %d pages total", all.length, numPages);
       return all;
    }
    private buildLocationsFromFlat(flat: RplFlatLocation[], boardId: number): RplListingsLocationsResponse {

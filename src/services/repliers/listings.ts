@@ -209,7 +209,7 @@ export default class RepliersListings extends RepliersBase {
    public locations(params: RplListingsLocationsRequest) {
       return this.request<RplListingsLocationsResponse>("GET", `/listings/locations`, params);
    }
-   public flatLocations(params: { boardId?: number; resultsPerPage?: number; pageNum?: number }) {
+   public flatLocations(params: { boardId?: number; resultsPerPage?: number; pageNum?: number; state?: string; country?: string }) {
       return this.request<RplFlatLocationsResponse>("GET", `/locations`, params);
    }
    public single(params: RplListingsSingleDto) {
