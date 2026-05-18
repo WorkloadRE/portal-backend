@@ -2,10 +2,6 @@ import { injectable } from "tsyringe";
 import _debug from "debug";
 import { agentsCreateClientSchema } from "../../../validate/agent.js";
 import BaseEventCollectionSelector, { EventsCollectionPropertiesSelector } from "./baseEventCollectionSelector.js";
-import { RplClientsClient } from "services/repliers/clients.js";
-import { Context } from "koa";
-import { CustomPeopleFields } from "services/boss.js";
-import { secureFubAvmLink } from "../../../lib/utils.js";
 const debug = _debug("repliers:services:SelectAgentClientRegistrationParams");
 @injectable()
 export default class SelectAgentClientRegistrationParams extends BaseEventCollectionSelector {
@@ -27,7 +23,7 @@ export default class SelectAgentClientRegistrationParams extends BaseEventCollec
       return {
          ...defaults,
          person: {
-            ...this.envSpecificPersonFields(ctx),
+            customAuthType: "Agent",
             firstName: value.fname,
             lastName: value.lname,
             emails: [{
@@ -45,18 +41,4 @@ export default class SelectAgentClientRegistrationParams extends BaseEventCollec
          status: true
       };
    };
-   envSpecificPersonFields(ctx: Context): CustomPeopleFields {
-      const defaultFields = {
-         customAuthType: "Agent"
-      };
-      if (!this.config.boss.custom_AVM_field) {
-         return defaultFields;
-      }
-      const fieldName = this.config.boss.custom_AVM_field;
-      const clientId = (ctx["body"] as RplClientsClient).clientId;
-      return {
-         ...defaultFields,
-         [fieldName as string]: clientId ? secureFubAvmLink(this.config.eventsCollection.clientUrl, clientId.toString(), this.config.auth.agents_signature_salt) : undefined
-      };
-   }
 }

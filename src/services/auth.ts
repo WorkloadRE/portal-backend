@@ -9,7 +9,7 @@ import ms, { StringValue } from "ms";
 import type { AppConfig, JwtSettings } from "../config.js";
 import { ApiError } from "../lib/errors.js";
 import { BlocklistRepository } from "../repository/blocklist.js";
-import { AuthEmbedDto, AuthRepliersTokenDto, UserLoginDto, UserOtpDto, UserSignupDto } from "../validate/auth.js";
+import { AuthRepliersTokenDto, UserLoginDto, UserOtpDto, UserSignupDto } from "../validate/auth.js";
 import RepliersClients, { RplClientsClient, RplClientsCreateResponse, RplClientsGetResponse } from "./repliers/clients.js";
 import RepliersMessages from "./repliers/messages.js";
 import Codegen from "./auth/codegen.js";
@@ -18,8 +18,6 @@ import { AclRepository } from "../repository/acl.js";
 import { UserRole } from "../constants.js";
 import { RplAgentsAgent } from "./repliers/agents.js";
 import SelectClientRegistrationParams from "./eventsCollection/selectors/selectClientRegistrationParams.js";
-import { BossEmbedContext, isFromFollowUpBoss } from "../lib/boss/auth.js";
-import { calcSignature } from "../lib/utils.js";
 const debug = _debug("repliers:services:auth");
 export type AgentProfile = Pick<RplAgentsAgent, "email" | "fname" | "lname" | "phone" | "status">;
 export type UserProfile = Pick<RplClientsClient, "email" | "fname" | "lname" | "phone" | "status" | "preferences" | "tags">;
@@ -327,25 +325,5 @@ export default class AuthService {
       } catch (err) {
          debug("reportClientRegistration: error %O", err);
       }
-   }
-   public async embedLogin(params: AuthEmbedDto) {
-      const {
-         context,
-         signature
-      } = params;
-      const isValid = isFromFollowUpBoss(context, signature, this.config.boss.system_key);
-      if (!isValid) {
-         throw new ApiError("Invalid signature", 401);
-      }
-      const decodedContext: BossEmbedContext = JSON.parse(Buffer.from(context, 'base64').toString('utf8'));
-      const jwt = await this.generateToken({
-         email: decodedContext.user.email,
-         role: UserRole.Agent
-      });
-      const clientSignature = calcSignature(decodedContext.person.id.toString(), this.config.auth.agents_signature_salt);
-      return {
-         jwt,
-         clientSignature
-      };
    }
 }

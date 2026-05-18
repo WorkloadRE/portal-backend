@@ -1,5 +1,4 @@
 import joi from "joi";
-import { BossUsersGetRequest } from "services/boss.js";
 import { RplAgentsCreateRequest } from "services/repliers/agents.js";
 export interface RplCreateAgentDto extends RplAgentsCreateRequest {}
 const adminCreateAgentSchemaKeys = {
@@ -25,8 +24,11 @@ export interface RplUpdateAgentDto extends Partial<RplCreateAgentDto> {
 export const adminUpdateAgentSchema = (adminCreateAgentSchema.fork(Object.keys(adminCreateAgentSchemaKeys), schema => schema.optional()) as joi.ObjectSchema<RplUpdateAgentDto>).keys({
    agentId: joi.number().required()
 }).min(2);
-export interface BossUsersGetDto extends BossUsersGetRequest {}
-export const adminGetAgentsSchema = joi.object<BossUsersGetDto>({
+export interface AdminGetAgentsDto {
+   offset?: number;
+   limit?: number;
+}
+export const adminGetAgentsSchema = joi.object<AdminGetAgentsDto>({
    offset: joi.number().integer().min(0).default(0),
    limit: joi.number().integer().min(1).max(100).default(10)
 });

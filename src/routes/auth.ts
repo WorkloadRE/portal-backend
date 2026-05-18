@@ -3,7 +3,7 @@ import { container } from "tsyringe";
 import type { Middleware } from "koa-jwt";
 import AuthService from "../services/auth.js";
 import { ApiError } from "../lib/errors.js";
-import { authEmbedSchema, authRepliersTokenSchema, userLoginSchema, userOtpSchema, userSignupSchema } from "../validate/auth.js";
+import { authRepliersTokenSchema, userLoginSchema, userOtpSchema, userSignupSchema } from "../validate/auth.js";
 import OAuthService from "../services/oauth.js";
 import { oauthUrlSchema } from "../validate/oauth.js";
 const authMiddleware = container.resolve<Middleware>("middleware.jwt");
@@ -411,20 +411,18 @@ router.post("/repliers-token", async ctx => {
       result
    };
 });
-router.post("/embed", async ctx => {
-   ctx.state["enable.xff"] = true;
-   const {
-      error,
-      value
-   } = authEmbedSchema.validate(ctx.request.body);
-   if (error) {
-      ctx.throw(new ApiError(error.message, 400));
-      return;
-   }
-   const authService = ctx.state.container.resolve(AuthService);
-   const result = await authService.embedLogin(value);
-   ctx.body = {
-      result
-   };
-});
+// /auth/embed route disabled — the supporting `AuthService.embedLogin()` was
+// removed during the Follow Up Boss → ActiveCampaign cleanup. Re-enable by
+// reintroducing the service method and uncommenting this block.
+// router.post("/embed", async ctx => {
+//    ctx.state["enable.xff"] = true;
+//    const { error, value } = authEmbedSchema.validate(ctx.request.body);
+//    if (error) {
+//       ctx.throw(new ApiError(error.message, 400));
+//       return;
+//    }
+//    const authService = ctx.state.container.resolve(AuthService);
+//    const result = await authService.embedLogin(value);
+//    ctx.body = { result };
+// });
 export default router;

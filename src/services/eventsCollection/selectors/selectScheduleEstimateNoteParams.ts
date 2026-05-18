@@ -1,7 +1,7 @@
 import { injectable } from "tsyringe";
 import _debug from "debug";
 import BaseEventCollectionSelector from "./baseEventCollectionSelector.js";
-import { BossNoteCreateRequest } from "../../boss.js";
+import { CrmNoteCreateRequest } from "../../../types/crm-events.js";
 import { RplEstimateSingle } from "services/repliers/estimate.js";
 const debug = _debug("repliers:services:SelectScheduleEstimateNoteParams");
 export interface ScheduleEstimateNoteParams {
@@ -12,7 +12,7 @@ export interface ScheduleEstimateNoteParams {
 @injectable()
 export default class SelectScheduleEstimateNoteParams {
    constructor(private baseEventCollectionSelector: BaseEventCollectionSelector) {}
-   select = async (params: ScheduleEstimateNoteParams): Promise<BossNoteCreateRequest> => {
+   select = async (params: ScheduleEstimateNoteParams): Promise<CrmNoteCreateRequest> => {
       debug("[SelectEstimateNoteParams] estimateParams %O", params);
       const {
          estimate,

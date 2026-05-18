@@ -26,12 +26,27 @@ export default {
          return (ctx, next) => {
             const eventsCollectionService = ctx.state.container.resolve(EventsCollectionService);
             if (allowIncognito || ctx.state['user']) {
-               selector(ctx).then(props => props && eventsCollectionService.eventsCreate(props));
-               notesSelector && notesSelector(ctx).then(props => props && eventsCollectionService.noteCreate(props));
+               // Fire-and-forget. The .catch() is non-optional: a thrown
+               // selector becomes an unhandled rejection under Node 20 and
+               // can terminate the process. We log and swallow.
+               selector(ctx)
+                  .then(props => props && eventsCollectionService.eventsCreate(props))
+                  .catch(err => console.error("[eventsCollection] selector error", err));
+               if (notesSelector) {
+                  notesSelector(ctx)
+                     .then(props => props && eventsCollectionService.noteCreate(props))
+                     .catch(err => console.error("[eventsCollection] notesSelector error", err));
+               }
             }
             next();
          };
       };
-      return config.boss.enabled === false ? () => emptyMiddleware : middlewareFactory;
+      // If AC is not configured, return empty middleware
+      const isEnabled = !!(
+         config.activecampaign.enabled &&
+         config.activecampaign.base_url &&
+         config.activecampaign.api_key
+      );
+      return isEnabled ? middlewareFactory : () => emptyMiddleware;
    })
 };

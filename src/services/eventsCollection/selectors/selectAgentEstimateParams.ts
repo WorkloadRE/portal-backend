@@ -1,18 +1,17 @@
 import { injectable, inject } from "tsyringe";
 import _debug from "debug";
 import BaseEventCollectionSelector, { EventsCollectionPropertiesSelector } from "./baseEventCollectionSelector.js";
-import { AgentCreateEstimateDto, agentsCreateEstimateSchema } from "../../../validate/agent.js";
+import { agentsCreateEstimateSchema } from "../../../validate/agent.js";
 import RepliersService from "../../../services/repliers.js";
 import { type AppConfig } from "../../../config.js";
 import UserService from "../../../services/user.js";
 import RepliersAgents from "../../../services/repliers/agents.js";
-import BossService from "../../../services/boss.js";
 const debug = _debug("repliers:services:SelectAgentEstimateParams");
 @injectable()
 export default class SelectAgentEstimateParams extends BaseEventCollectionSelector {
-   constructor(protected usersService: UserService, protected repliers: RepliersService, protected agentsService: RepliersAgents, protected bossService: BossService, @inject("config")
+   constructor(protected usersService: UserService, protected repliers: RepliersService, protected agentsService: RepliersAgents, @inject("config")
    protected config: AppConfig) {
-      super(repliers, agentsService, bossService, config);
+      super(repliers, agentsService, config);
    }
    select: EventsCollectionPropertiesSelector = async ctx => {
       try {
@@ -25,7 +24,7 @@ export default class SelectAgentEstimateParams extends BaseEventCollectionSelect
             agentId: ctx.state["user"].sub
          });
          if (error) {
-            throw error; // goto is fine here
+            throw error;
          }
          const defaults = await this.getDefaults(ctx);
          const {
@@ -55,11 +54,11 @@ export default class SelectAgentEstimateParams extends BaseEventCollectionSelect
             type: "Seller Inquiry"
          };
       } catch (error) {
-         debug("Fail to generate FUB params due to error %O", error);
+         debug("Fail to generate CRM params due to error %O", error);
          return null;
       }
    };
-   async getOwner(estimate: AgentCreateEstimateDto) {
+   async getOwner(estimate: { clientId?: number }) {
       if (estimate.clientId) {
          const client = await this.usersService.info(estimate.clientId);
          return client ? {

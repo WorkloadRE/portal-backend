@@ -258,11 +258,27 @@ const listingSearchSchemaKeys = {
       }).or("value", "url")).min(1)
    })
 };
-export const listingSearchSchema = joi.object<RplListingsSearchDto>().keys(listingSearchSchemaKeys).with("radius", ["long", "lat"]);
+// Allow raw.* passthrough filters (e.g. raw.Disclosures="Short Sale") per
+// https://help.repliers.com/en/article/raw-mls-data-access-with-repliers-nhlg5o/
+// Repliers' upstream API natively accepts raw.<MLSField>=<value> filters and
+// returns matching listings; we just need Joi to stop rejecting the key here.
+const rawFieldValueSchema = joi.alternatives(
+   joi.string(),
+   joi.array().items(joi.string()).single(),
+   joi.number(),
+   joi.boolean()
+);
+
+export const listingSearchSchema = joi.object<RplListingsSearchDto>()
+   .keys(listingSearchSchemaKeys)
+   .pattern(/^raw\./, rawFieldValueSchema)
+   .with("radius", ["long", "lat"]);
 // .with("radius", "state.user"); //Example: require "radius" for authorized users;
 
 const listingCountSchemaKeys = _.omit(listingSearchSchemaKeys, listingsCountOmittedFields);
-export const listingCountSchema = joi.object<RplListingsCountDto>().keys(listingCountSchemaKeys);
+export const listingCountSchema = joi.object<RplListingsCountDto>()
+   .keys(listingCountSchemaKeys)
+   .pattern(/^raw\./, rawFieldValueSchema);
 export interface RplImageSearchItemBase {
    type: string;
    boost: number;

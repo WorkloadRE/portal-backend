@@ -26,7 +26,6 @@ import nats from './nats.js';
 import containerMiddleware from './middleware/container.js';
 import containerXffMiddleware from './middleware/container/xff.js';
 import dummyXFFProvider from './dummy.xff.js';
-import bossWebhookAuth from "./middleware/boss.webhook.auth.js";
 import asyncLocalStore from "./asyncLocalStore.js";
-@registry([asyncLocalStore, config, logger, loggerGlobal, loggerMiddleware, keyvBlocklist, swaggerMiddleware, helmetMiddleware, bodyparserMiddleware, corsMiddleware, roleMiddlware, jwtMiddlewareConfig, jwtMiddlewareConfigKeys, jwtMiddlewarePassthrough, jwtMiddleware, xssMiddleware, compressMiddleware, sslifyMiddleware, pinoMiddleware, oauthGoogle, keyvSignupcodes, dataCommunities, eventsCollectionMiddleware, db, nats, containerMiddleware, containerXffMiddleware, dummyXFFProvider, bossWebhookAuth])
+@registry([asyncLocalStore, config, logger, loggerGlobal, loggerMiddleware, keyvBlocklist, swaggerMiddleware, helmetMiddleware, bodyparserMiddleware, corsMiddleware, roleMiddlware, jwtMiddlewareConfig, jwtMiddlewareConfigKeys, jwtMiddlewarePassthrough, jwtMiddleware, xssMiddleware, compressMiddleware, sslifyMiddleware, pinoMiddleware, oauthGoogle, keyvSignupcodes, dataCommunities, eventsCollectionMiddleware, db, nats, containerMiddleware, containerXffMiddleware, dummyXFFProvider])
 export default class ContainerRegistry {}

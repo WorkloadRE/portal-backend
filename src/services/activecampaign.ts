@@ -2,7 +2,7 @@ import { injectable, inject } from "tsyringe";
 import _debug from "debug";
 import type { Logger } from "pino";
 import type { AppConfig } from "../config.js";
-import type { BossEventsCreateRequest } from "./boss.js";
+import type { CrmEventsCreateRequest } from "../types/crm-events.js";
 
 const debug = _debug("repliers:services:activecampaign");
 
@@ -62,13 +62,13 @@ export default class ActiveCampaignService {
 
    /**
     * Fires an event to ActiveCampaign. This is the PRIMARY lead ingress for
-    * Bruno Fine Properties. Safe to call in parallel with BossService — both
-    * accept the same BossEventsCreateRequest shape.
+    * Bruno Fine Properties. Consumes the shared CrmEventsCreateRequest shape
+    * defined in src/types/crm-events.ts (post-Follow-Up-Boss removal).
     *
     * Fire-and-forget style: errors are logged but never thrown, so a flaky
     * AC API does not break user registration or saved searches.
     */
-   async pushEvent(params: Partial<BossEventsCreateRequest>): Promise<void> {
+   async pushEvent(params: Partial<CrmEventsCreateRequest>): Promise<void> {
       if (!this.config.activecampaign?.enabled) {
          debug("[pushEvent] AC disabled; skipping");
          return;
@@ -114,7 +114,7 @@ export default class ActiveCampaignService {
     * Subdivision-Gleannloch-Farms), and the mutually-exclusive price bucket.
     * Always appends Source-BrunoFineProperties-IDX.
     */
-   computeTags(params: Partial<BossEventsCreateRequest>): string[] {
+   computeTags(params: Partial<CrmEventsCreateRequest>): string[] {
       const out = new Set<string>();
       const state = this.config.activecampaign?.default_state_code || "TX";
 
@@ -138,9 +138,14 @@ export default class ActiveCampaignService {
          }
       }
 
-      // Subdivisions / neighborhoods — can be comma-separated
+      // Subdivisions / neighborhoods.
+      // New CrmEventPropertySearch types it as string[], but keep defensive
+      // string-splitting in case any selector still emits a legacy comma list.
       if (search?.neighborhood) {
-         for (const sub of search.neighborhood.split(",").map(s => s.trim()).filter(Boolean)) {
+         const items = Array.isArray(search.neighborhood)
+            ? search.neighborhood
+            : String(search.neighborhood).split(",").map(s => s.trim()).filter(Boolean);
+         for (const sub of items) {
             const slug = slugifyTagSegment(sub);
             if (slug) out.add(`Subdivision-${slug}`);
          }
@@ -164,13 +169,14 @@ export default class ActiveCampaignService {
          out.add("Search-Custom-Polygon");
       }
 
-      // Every lead gets the source tag
-      out.add("Source-BrunoFineProperties-IDX");
+      // Every lead gets the configured source tag (defaults to
+      // "Source-BrunoFineProperties-IDX" via env).
+      out.add(this.config.activecampaign.source_tag);
 
       return [...out];
    }
 
-   private bucketPrice(params: Partial<BossEventsCreateRequest>): string {
+   private bucketPrice(params: Partial<CrmEventsCreateRequest>): string {
       const search = params.propertySearch;
       const property = params.property;
 

@@ -1,28 +1,29 @@
 import { injectable, inject } from "tsyringe";
 import _debug from "debug";
-import BossService, { BossEventsCreateRequest, BossNoteCreateRequest } from "../boss.js";
 import ActiveCampaignService from "../activecampaign.js";
 import type { AppConfig } from "config.js";
 import { Context } from "koa";
-import UserService from "../../services/user.js";
+import { CrmEventsCreateRequest, CrmNoteCreateRequest } from "../../types/crm-events.js";
+
 const debug = _debug("repliers:services:eventsCollection");
-export type EventsCollectionPropertiesSelector = (ctx: Context) => Promise<BossEventsCreateRequest | null>;
-export type NotesCollectionPropertiesSelector = (ctx: Context) => Promise<BossNoteCreateRequest | null>;
+
+export type EventsCollectionPropertiesSelector = (ctx: Context) => Promise<CrmEventsCreateRequest | null>;
+export type NotesCollectionPropertiesSelector = (ctx: Context) => Promise<CrmNoteCreateRequest | null>;
+
 @injectable()
 export default class EventsCollectionService {
    constructor(
-      private boss: BossService,
       private activecampaign: ActiveCampaignService,
-      private userService: UserService,
       @inject("config") private config: AppConfig
    ) {}
-   eventsCreate(params: Partial<BossEventsCreateRequest>) {
+
+   eventsCreate(params: Partial<CrmEventsCreateRequest>) {
       const {
          ignoreDefaultTags,
          ...rest
       } = params;
       debug("[reportEvent] params %O", params);
-      const enrichedParams = {
+      const enrichedParams: Partial<CrmEventsCreateRequest> = {
          ...this.config.eventsCollection.defaultEventFields,
          ...rest,
          person: {
@@ -32,76 +33,20 @@ export default class EventsCollectionService {
          }
       };
 
-      // Fire to ActiveCampaign — primary CRM for Bruno Fine Properties.
-      // Fire-and-forget: AC failures must not break user-facing flows.
+      // Fire-and-forget to ActiveCampaign — primary CRM for Bruno Fine Properties.
+      // AC failures must not break user-facing flows.
       this.activecampaign.pushEvent(enrichedParams).catch(e => {
          debug("[reportEvent] AC error %O", e);
       });
+   }
 
-      // Fire to Follow Up Boss — only if still enabled (legacy code path).
-      // BOSS_ENABLED=false in prod env disables this at the client level.
-      if (this.config.boss.enabled) {
-         this.boss.eventsCreate(enrichedParams).then(r => {
-            debug("[reportEvent] succeed %O", r);
-         }).catch(e => {
-            debug("[reportEvent] error %O", e);
-         });
-      }
+   async noteCreate(params: CrmNoteCreateRequest) {
+      // Notes were a Follow Up Boss concept; ActiveCampaign has no notes API.
+      // Log for traceability but don't dispatch anywhere.
+      debug("[noteCreate] params %O (no-op, FUB removed)", params);
    }
-   async noteCreate(params: BossNoteCreateRequest) {
-      debug("[noteCreate] params %O", params);
-      const {
-         clientId,
-         personId,
-         ...rest
-      } = params;
-      this.getPersonId({
-         clientId,
-         personId
-      }).then(personId => {
-         debug("[noteCreate] personId %O", personId);
-         this.boss.noteCreate({
-            personId,
-            ...rest
-         }).then(r => {
-            debug("[noteCreate] succeed %O", r);
-         }).catch(e => {
-            debug("[noteCreate] error %O", e);
-         });
-      });
-   }
-   private getPersonId(params: {
-      personId?: string | number | undefined;
-      clientId?: number | string | undefined;
-   }): Promise<number> {
-      return new Promise((resolve, reject) => {
-         if (params.personId) {
-            resolve(+params.personId);
-         }
-         if (params.clientId) {
-            this.userService.info(+params.clientId).then(async client => {
-               if (client.externalId) {
-                  resolve(+client.externalId);
-               } else {
-                  const personSearchParams = client?.externalId ? {
-                     id: client.externalId
-                  } : {
-                     email: client?.email
-                  };
-                  const bossPersons = await this.boss.getPeople(personSearchParams);
-                  if (bossPersons?.people?.[0]?.id) {
-                     resolve(bossPersons.people[0].id);
-                  } else {
-                     reject(new Error(`Person not found for clientId: ${params.clientId}`));
-                  }
-               }
-            });
-         } else {
-            reject(new Error("personId or clientId is required"));
-         }
-      });
-   }
-   assignAgent(person: BossEventsCreateRequest["person"]) {
+
+   assignAgent(person?: CrmEventsCreateRequest["person"]) {
       const defaultPersonFields = this.config.eventsCollection.defaultPersonFields;
       return person?.assignedUserId ? {
          assignedUserId: person.assignedUserId
@@ -109,7 +54,8 @@ export default class EventsCollectionService {
          assignedTo: person?.assignedTo || defaultPersonFields.assignedTo
       };
    }
-   assignTags(person: BossEventsCreateRequest["person"]) {
+
+   assignTags(person?: CrmEventsCreateRequest["person"]) {
       const defaultPersonFields = this.config.eventsCollection.defaultPersonFields;
       return [...(defaultPersonFields.tags || []), ...(person?.tags || [])];
    }

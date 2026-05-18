@@ -1,5 +1,5 @@
 import { Context } from "koa";
-import BossService, { BossEventPerson, BossEventProperty, BossEventPropertySearch, BossEventsCreateRequest } from "../../boss.js";
+import { CrmEventPerson, CrmEventProperty, CrmEventPropertySearch, CrmEventsCreateRequest } from "../../../types/crm-events.js";
 import RepliersService from "../../repliers.js";
 import { inject, injectable } from "tsyringe";
 import { type AppConfig } from "config.js";
@@ -11,13 +11,12 @@ import { RplSearchesCreateDto } from "../../repliers/searches.js";
 import RepliersAgents from "../../repliers/agents.js";
 import { RplEstimateAddDto, RplEstimateCore } from "../../../services/repliers/estimate.js";
 const debug = _debug("repliers:services:BaseEventCollectionSelector");
-export type EventsCollectionPropertiesSelector = (ctx: Context) => Promise<BossEventsCreateRequest | null>;
+export type EventsCollectionPropertiesSelector = (ctx: Context) => Promise<CrmEventsCreateRequest | null>;
 @injectable()
 export default class BaseEventCollectionSelector {
-   constructor(protected repliers: RepliersService, protected agentsService: RepliersAgents, protected bossService: BossService, @inject("config")
+   constructor(protected repliers: RepliersService, protected agentsService: RepliersAgents, @inject("config")
    protected config: AppConfig) {}
-   async getPerson(email: string, defaults: Partial<BossEventPerson> = {}): Promise<BossEventPerson> {
-      // todo: fetch person info if needed
+   async getPerson(email: string, defaults: Partial<CrmEventPerson> = {}): Promise<CrmEventPerson> {
       return {
          ...defaults,
          emails: [{
@@ -39,7 +38,7 @@ export default class BaseEventCollectionSelector {
       }
       return this.config.eventsCollection.propertyUrl.replace("[MLS_NUMBER]", mlsNumber.toString()).replace("boardId=[BOARD_ID]", "");
    }
-   mapRplPropertyToBoss(property: RplListingsSingleResponse): BossEventProperty {
+   mapRplPropertyToCrm(property: RplListingsSingleResponse): CrmEventProperty {
       return {
          street: this.addressShort(property.address),
          city: property.address?.["city"] as string,
@@ -53,7 +52,7 @@ export default class BaseEventCollectionSelector {
          bathrooms: property?.["details"]?.["numBathrooms"] as string
       };
    }
-   async getProperty(mlsNumber: string, boardId?: number): Promise<BossEventProperty> {
+   async getProperty(mlsNumber: string, boardId?: number): Promise<CrmEventProperty> {
       const pageUrl = this.buildPropertyUrl(mlsNumber, boardId);
       const defaults = {
          mlsNumber,
@@ -77,7 +76,7 @@ export default class BaseEventCollectionSelector {
          });
          return {
             ...defaults,
-            ...this.mapRplPropertyToBoss(data)
+            ...this.mapRplPropertyToCrm(data)
          };
       } catch (err) {
          debug("[getProperty] error %O", err);
@@ -102,21 +101,28 @@ export default class BaseEventCollectionSelector {
    capitalize(str: string) {
       return str.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
    }
-   mapRplPropertySearchToBoss(propertySearch: RplSearchesCreateDto): BossEventPropertySearch {
+   mapRplPropertySearchToCrm(propertySearch: RplSearchesCreateDto): CrmEventPropertySearch {
       return {
          // @ts-expect-error bad type? class is an array
          type: propertySearch["class"].join(","),
-         neighborhood: propertySearch["neighborhoods"],
+         // CrmEventPropertySearch models neighborhoods as string[]. The Repliers
+         // DTO actually validates this as string[] (see validate/searches.ts),
+         // but some upstream callers historically passed a comma-separated
+         // string, so accept either shape defensively.
+         neighborhood: (() => {
+            const raw = propertySearch["neighborhoods"];
+            if (!raw) return undefined;
+            if (Array.isArray(raw)) return raw.filter(Boolean);
+            return String(raw).split(",").map(s => s.trim()).filter(Boolean);
+         })(),
          city: propertySearch["cities"]?.join(","),
          state: propertySearch["areas"]?.join(","),
-         // not sure about this one
          minPrice: propertySearch["minPrice"],
          maxPrice: propertySearch["maxPrice"],
          minBedrooms: propertySearch["minBeds"],
          maxBedrooms: propertySearch["maxBeds"],
          minBathrooms: propertySearch["minBaths"],
          maxBathrooms: propertySearch["maxBaths"]
-         // code?: string[]; // completely no idea about this one
       };
    }
    async getAgent(agentId: number): Promise<{
@@ -130,14 +136,7 @@ export default class BaseEventCollectionSelector {
          };
       }
       const agentName = `${agent.fname} ${agent.lname}`;
-      const {
-         users
-      } = await this.bossService.getUsers({
-         name: agentName
-      });
-      return users[0] ? {
-         assignedUserId: users[0].id
-      } : {};
+      return { assignedTo: agentName };
    }
    getSellIntentionTag(estimate: RplEstimateAddDto): string[] {
       const tagsMap = {

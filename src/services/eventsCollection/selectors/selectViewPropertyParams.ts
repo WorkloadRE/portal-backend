@@ -15,7 +15,7 @@ export default class SelectViewPropertyParams extends BaseEventCollectionSelecto
          ...defaults,
          type: 'Viewed Property',
          pageUrl,
-         property: this.mapRplPropertyToBoss(property),
+         property: this.mapRplPropertyToCrm(property),
          pageReferrer: defaults.pageReferrer || pageUrl
       };
    };

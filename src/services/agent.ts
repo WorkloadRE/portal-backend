@@ -3,18 +3,13 @@ import { inject, injectable } from "tsyringe";
 import RepliersClients from "./repliers/clients.js";
 import RepliersEstimate from "./repliers/estimate.js";
 import RepliersMessages from "./repliers/messages.js";
-import { AgentCreateClientDto, AgentCreateEstimateDto, AgentCreateMessageDto, AgentGetBossPeopleDto, AgentGetClientsDto, AgentGetEstimateDto, AgentGetMessagesDto, AgentSendEstimateDto, AgentUpdateClientDto, AgentUpdateEstimateDto } from "../validate/agent.js";
-import BossService from "./boss.js";
-import { SyncRepository } from "../repository/sync.js";
-import { PeopleSyncRepository } from "../repository/people_sync.js";
-import SyncService from "./sync.js";
+import { AgentCreateClientDto, AgentCreateEstimateDto, AgentCreateMessageDto, AgentGetClientsDto, AgentGetEstimateDto, AgentGetMessagesDto, AgentSendEstimateDto, AgentUpdateClientDto, AgentUpdateEstimateDto } from "../validate/agent.js";
 import { type AppConfig } from "../config.js";
 import { calcSignature } from "../lib/utils.js";
 @injectable()
 export default class AgentService {
-   constructor(private repliersClients: RepliersClients, private repliersEstimates: RepliersEstimate, private repliersMessages: RepliersMessages, private boss: BossService,
-   // by @sokol8: TEMP COMMENT TO MAKE THINGS BUILD
-   private syncRepo: SyncRepository, private peopleSyncRepo: PeopleSyncRepository, private syncService: SyncService, @inject("config")
+   constructor(private repliersClients: RepliersClients, private repliersEstimates: RepliersEstimate, private repliersMessages: RepliersMessages,
+   @inject("config")
    private config: AppConfig) {}
    async checkSignature(clientId: string, signature: string | string[] | undefined): Promise<[boolean, number?]> {
       if (!signature) {
@@ -84,39 +79,5 @@ export default class AgentService {
       return this.repliersEstimates.patch({
          ...params
       });
-   }
-   async getBossPeople(params: AgentGetBossPeopleDto) {
-      return this.boss.getPeople({
-         ...params
-      });
-   }
-   async syncBossPeople(params: AgentGetBossPeopleDto) {
-      const bossPeople = await this.boss.getPeople({
-         ...params
-      });
-      if (bossPeople.people.length === 0) {
-         return {
-            synced: 0
-         };
-      }
-      const [tx, sync] = await this.syncRepo.startSync();
-      const people = bossPeople.people.map(person => {
-         return {
-            sync_id: sync.id,
-            payload: person,
-            user_id: params.assignedUserId,
-            people_id: person.id,
-            agent_id: params.agentId,
-            status: "PENDING"
-         };
-      });
-      const peoples = await this.peopleSyncRepo.createPeople(people, tx);
-      await tx.commit();
-      for (const person of peoples) {
-         await this.syncService.publishUpsert(person.id, person.payload);
-      }
-      return {
-         synced: peoples.length
-      };
    }
 }

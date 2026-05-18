@@ -1,40 +1,26 @@
 import { injectable } from "tsyringe";
 import _ from "lodash";
-import BossService from "./boss.js";
 import RepliersAgents from "./repliers/agents.js";
-import { BossUsersGetDto, RplCreateAgentDto, RplUpdateAgentDto } from "../validate/admin.js";
+import { RplCreateAgentDto, RplUpdateAgentDto } from "../validate/admin.js";
 import { normalizeEmail, normalizePhoneNumber } from "../lib/utils.js";
 import { ApiError, ApiWarning } from "../lib/errors.js";
 @injectable()
 export default class AdminService {
-   constructor(private readonly boss: BossService, private readonly repliersAgents: RepliersAgents) {}
-   async getAgents(params: BossUsersGetDto) {
-      const bossUsers = await this.boss.getUsers({
-         ...params
-      });
+   constructor(private readonly repliersAgents: RepliersAgents) {}
+   async getAgents(params: { offset?: number; limit?: number }) {
       const repliersAgents = await this.repliersAgents.filter({
          status: true
       });
-      const agents = [];
-      for (const user of bossUsers.users) {
-         const agent = repliersAgents.agents.filter(agent => (agent.email.toLowerCase() === user.email.toLowerCase() || agent.phone === user.phone) && agent.email !== null && agent.phone !== null);
-         if (agent) {
-            agents.push({
-               ...user,
-               repliers: agent
-            });
-         } else {
-            agents.push({
-               ...user,
-               repliers: []
-            });
-         }
-      }
-      const response = {
-         ..._.pick(bossUsers._metadata, ['offset', 'limit', 'total']),
+      const agents = repliersAgents.agents.map(agent => ({
+         ...agent,
+         repliers: [agent]
+      }));
+      return {
+         offset: params.offset ?? 0,
+         limit: params.limit ?? 10,
+         total: agents.length,
          agents
       };
-      return response;
    }
    async createAgentsBatch(params: RplCreateAgentDto[]) {
       const resultArray = [];

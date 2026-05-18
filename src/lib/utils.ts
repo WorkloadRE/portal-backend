@@ -54,10 +54,6 @@ export const normalizeEmail = (email: string | null | undefined): string | undef
    }
    return trimmed.toLowerCase();
 };
-export const secureFubAvmLink = (clientUrl: string, clientId: string | number, salt?: string): string | undefined => {
-   const url = clientUrl.replace("[CLIENT_ID]", clientId.toString());
-   return salt && 0 < salt.length ? url + `?s=${calcSignature(clientId.toString(), salt)}` : url;
-};
 export function calcSignature(clientId: string | number, salt: string): string {
    const HASH_LENGTH = 16;
    const hashValue = `${clientId.toString()}${salt}`;

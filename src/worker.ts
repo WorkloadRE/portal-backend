@@ -7,12 +7,21 @@ import type { Logger } from "pino";
 import streams from "./streams/index.js";
 import pRetry from "p-retry";
 const logger = container.resolve<Logger>("logger.global");
+const config = container.resolve<AppConfig>("config");
+
+// Short-circuit: no streams + no NATS = nothing for this worker to do.
+// FUB-people was the only registered stream before the migration; without it,
+// resolving "nats" and hunting for a WorkerClass just crashes the dyno.
+if (streams.length === 0 || !config.nats.enabled) {
+   logger.warn(`Worker exiting: no streams configured or NATS disabled (streams=${streams.length}, nats.enabled=${config.nats.enabled})`);
+   process.exit(0);
+}
+
 const jsc = await pRetry(() => container.resolve<Promise<JetStreamClient>>("nats"), {
    onFailedAttempt: error => {
       logger.error(`Establishing NATS connection, attempt ${error.attemptNumber} failed. There are ${error.retriesLeft} retries left.`);
    }
 });
-const config = container.resolve<AppConfig>("config");
 const consumer = await jsc.consumers.get(config.nats.worker.consumer_stream, config.nats.worker.consumer_name);
 const WorkerClass = streams.find(s => s.stream.name === config.nats.worker.consumer_stream)?.worker;
 if (!WorkerClass) {

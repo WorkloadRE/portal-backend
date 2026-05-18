@@ -6,7 +6,7 @@ import UserService from "../services/user.js";
 import { userUpdateSchema } from "../validate/user.js";
 import assets from './user/assets.js';
 import social from './user/social.js';
-import boss from './user/boss.js';
+
 const router = new Router({
    prefix: "/user"
 });
@@ -154,5 +154,5 @@ router.get("/agent", pathThroughMiddleware, async ctx => {
 });
 router.use(assets.routes(), assets.allowedMethods());
 router.use(social.routes(), social.allowedMethods());
-router.use(boss.routes(), boss.allowedMethods());
+
 export default router;

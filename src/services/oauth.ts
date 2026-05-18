@@ -14,7 +14,6 @@ import OAuthFacebookAdapter from "./oauth/facebook.js";
 import _ from "lodash";
 import _debug from "debug";
 import EventsCollectionService from "./eventsCollection/eventsCollection.js";
-import BossService from "./boss.js";
 import SelectClientRegistrationParams from "./eventsCollection/selectors/selectClientRegistrationParams.js";
 import type { Logger } from "pino";
 const debug = _debug("repliers:services:oauth");
@@ -23,7 +22,7 @@ export default class OAuthService {
    constructor(@inject("logger")
    private logger: Logger, @inject("config")
    // used normally for each request
-   private config: AppConfig, private repliersClients: RepliersClients, private repliersAgents: RepliersAgents, private authService: AuthService, private eventsCollection: EventsCollectionService, private boss: BossService, private registerClientSelector: SelectClientRegistrationParams) {}
+   private config: AppConfig, private repliersClients: RepliersClients, private repliersAgents: RepliersAgents, private authService: AuthService, private eventsCollection: EventsCollectionService, private registerClientSelector: SelectClientRegistrationParams) {}
    private adapters: Record<OAuthProviders, OAuthBaseAdapter> = {
       facebook: container.resolve(OAuthFacebookAdapter),
       google: container.resolve(OAuthGoogleAdapter)
@@ -104,16 +103,10 @@ export default class OAuthService {
       return agents.find(agent => agent.email.toLowerCase() === email.toLowerCase());
    }
    private async agentLogin(agent: RplAgentsAgent) {
-      const fubUser = await this.boss.getUsers({
-         email: agent.email
-      });
       const payload: JwtPayload = {
          email: agent.email,
          sub: agent.agentId.toString(),
-         role: UserRole.Agent,
-         external: {
-            fub_id: fubUser?.users?.[0]?.id
-         }
+         role: UserRole.Agent
       };
       const token = await this.authService.generateToken(payload);
       const profile = _.pick(agent, agentProfilKeys);

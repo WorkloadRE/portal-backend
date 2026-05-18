@@ -24,7 +24,7 @@ export default class SelectSaveSearchParams extends BaseEventCollectionSelector 
          ...defaults,
          type: "Saved Property Search",
          pageUrl: defaults.pageReferrer,
-         propertySearch: this.mapRplPropertySearchToBoss(value),
+         propertySearch: this.mapRplPropertySearchToCrm(value),
          description: searchUrl ? `Saved search url: ${searchUrl}` : undefined
       };
    };

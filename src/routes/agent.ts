@@ -6,11 +6,9 @@ import { ApiError } from "../lib/errors.js";
 import { RoleMiddlewareCreator } from "../providers/middleware/role.js";
 import { UserRole } from "../constants.js";
 import AgentService from "../services/agent.js";
-import { agentsCreateClientSchema, agentsCreateEstimateSchema, agentsGetEstimateSchema, agentsSendEstimateSchema, agentsCreateMessageSchema, agentsGetMessagesSchema, agentsUpdateEstimateSchema, agentGetBossPeopleSchema, agentGetClientsSchema, agentUpdateClientSchema, agentsDeleteEstimateSchema, agentGetSingleClientsSchema } from "../validate/agent.js";
+import { agentsCreateClientSchema, agentsCreateEstimateSchema, agentsGetEstimateSchema, agentsSendEstimateSchema, agentsCreateMessageSchema, agentsGetMessagesSchema, agentsUpdateEstimateSchema, agentGetClientsSchema, agentUpdateClientSchema, agentsDeleteEstimateSchema, agentGetSingleClientsSchema } from "../validate/agent.js";
 import EstimateService from "../services/estimate.js";
-import UserService from "../services/user.js";
-import BossService from "../services/boss.js";
-import BaseEventCollectionSelector from "../services/eventsCollection/selectors/baseEventCollectionSelector.js";
+
 import { EventsCollectionMiddleware } from "../providers/middleware/eventsCollection.js";
 import SelectAgentClientRegistrationParams from "../services/eventsCollection/selectors/selectAgentClientRegistrationParams.js";
 import SelectAgentEstimateParams from "../services/eventsCollection/selectors/selectAgentEstimateParams.js";
@@ -575,7 +573,7 @@ router.get("/estimate/:clientId", async ctx => {
  *             $ref: '#/components/responses/NotFound'
  */
 /* ACCESS: YES signature accsess */
-router.post("/estimate/:estimateId/send", async (ctx, next) => {
+router.post("/estimate/:estimateId/send", async ctx => {
    ctx.state['enable.xff'] = true;
    const {
       error,
@@ -590,45 +588,6 @@ router.post("/estimate/:estimateId/send", async (ctx, next) => {
    }
    const agentService = ctx.state.container.resolve(AgentService);
    ctx.body = await agentService.sendEstimate(value);
-   next();
-}, async ctx => {
-   try {
-      const estimateService = ctx.state.container.resolve(EstimateService);
-      const estimateId = +ctx.params["estimateId"]!;
-      const estimate = await estimateService.get({
-         estimateId
-      });
-      const userService = ctx.state.container.resolve(UserService);
-      const bossService = ctx.state.container.resolve(BossService);
-      const baseEventCollectionSelector = ctx.state.container.resolve(BaseEventCollectionSelector);
-      const clientId = estimate.clientId;
-      const client = await userService.info(clientId);
-      const personSearchParams = client.externalId ? {
-         id: client.externalId
-      } : {
-         email: client.email
-      };
-      const bossPersons = await bossService.getPeople(personSearchParams);
-      if (bossPersons?.people?.[0]?.id) {
-         const addressShort = estimate.payload.address ? baseEventCollectionSelector.addressShort(estimate.payload.address) : 'unknown address';
-         const price = new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            notation: 'compact'
-         }).format(estimate.estimate);
-         const estimateUrl = baseEventCollectionSelector.getEstimateUrl(estimate);
-         await bossService.noteCreate({
-            personId: bossPersons.people[0].id,
-            subject: "Estimate sent to the client via email",
-            body: `<p><b>${price}</b> property at <b>${addressShort}, ${estimate.payload.address?.city}</b>. Click <a href="${estimateUrl}" target="__blank">here</a> to view details.</p>`,
-            isHtml: true
-         });
-      } else {
-         console.error("Error: Failed fetching people from Boss");
-      }
-   } catch (e) {
-      console.error("Error creating note in Boss", e);
-   }
 });
 
 /* ACCESS: YES signature accsess */
@@ -878,40 +837,5 @@ router.get("/messages/:clientId", async ctx => {
    ctx.body = await agentService.getMessages(value);
 });
 
-/* ACCESS: no signature accsess */
-router.get('/boss/people', async ctx => {
-   // actually we have to pick assignedUserId from the token
-   const {
-      error,
-      value
-   } = agentGetBossPeopleSchema.validate({
-      ...ctx.query,
-      agentId: ctx.state["user"].sub,
-      assignedUserId: ctx.state["user"]?.external?.fub_id
-   });
-   if (error) {
-      ctx.throw(new ApiError(error.message, 400));
-      return;
-   }
-   const agentService = ctx.state.container.resolve(AgentService);
-   ctx.body = await agentService.getBossPeople(value);
-});
-
-/* ACCESS: NO signature accsess */
-router.post('/boss/people', async ctx => {
-   const {
-      error,
-      value
-   } = agentGetBossPeopleSchema.validate({
-      ...ctx.query,
-      agentId: ctx.state["user"].sub,
-      assignedUserId: ctx.state["user"]?.external?.fub_id
-   });
-   if (error) {
-      ctx.throw(new ApiError(error.message, 400));
-      return;
-   }
-   const agentService = ctx.state.container.resolve(AgentService);
-   ctx.body = await agentService.syncBossPeople(value);
-});
+// Boss/FUB people routes removed — CRM integration now handled by ActiveCampaign
 export default router;

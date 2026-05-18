@@ -1,7 +1,6 @@
 import assert from "node:assert";
 import dotenv from "dotenv";
 import { OAuthProviders, SocialProvider, UserRole } from "./constants.js";
-import { BossEventPerson, BossEventsCreateRequest, CustomBossField } from "./services/boss.js";
 import type { Knex } from "knex";
 import path from "node:path";
 import { ConnectionOptions } from "@nats-io/transport-node";
@@ -128,19 +127,6 @@ export interface AppConfig {
    };
    boss: {
       enabled: boolean;
-      base_url: string;
-      timeout_ms: number;
-      username: string;
-      password: string;
-      system: string;
-      system_key: string;
-      webhook: {
-         enabled: boolean;
-         base_url: string;
-         use_ngrok: boolean;
-         client_tags: string;
-      };
-      custom_AVM_field?: CustomBossField | undefined;
    };
    activecampaign: {
       enabled: boolean;
@@ -148,13 +134,15 @@ export interface AppConfig {
       api_key: string;
       list_id: string;
       default_state_code: string;
+      source_tag: string;
+      list_name: string;
    };
    ngrok: {
       authtoken: string;
    };
    eventsCollection: {
-      defaultEventFields: Partial<BossEventsCreateRequest>;
-      defaultPersonFields: Partial<BossEventPerson>;
+      defaultEventFields: Partial<{ source: string }>;
+      defaultPersonFields: Partial<{ assignedTo: string; tags: string[] }>;
       defaultBoardId: string;
       urlHost?: string | undefined;
       propertyUrl: string;
@@ -390,45 +378,32 @@ const config: AppConfig = {
       language: process.env["PROXIMITY_SEARCH_LANGUAGE"] || "en"
    },
    boss: {
-      enabled: process.env["BOSS_ENABLED"] !== "false",
-      // any value including empty will enable it ?
-      base_url: process.env["BOSS_BASEURL"] || "https://api.followupboss.com/v1",
-      timeout_ms: parseInt(process.env["BOSS_TIMEOUT_MS"] || "30000"),
-      username: process.env["BOSS_USERNAME"] || "",
-      password: process.env["BOSS_PASSWORD"] || "",
-      system: process.env["BOSS_SYSTEM"] || "",
-      system_key: process.env["BOSS_SYSTEM_KEY"] || "",
-      webhook: {
-         enabled: process.env["BOSS_WEBHOOK_ENABLED"] === "true",
-         base_url: process.env["BOSS_WEBHOOK_BASEURL"] || "https://localhost:3000/webhook",
-         use_ngrok: process.env["BOSS_WEBHOOK_USE_NGROK"] === "true",
-         client_tags: process.env["BOSS_WEBHOOK_CLIENT_TAGS_CSV"] || ""
-      },
-      custom_AVM_field: process.env["BOSS_CUSTOM_AVM_FIELD"] as CustomBossField | undefined
+      enabled: process.env["BOSS_ENABLED"] === "true" // always false — FUB replaced by ActiveCampaign
    },
    activecampaign: {
       enabled: process.env["ACTIVECAMPAIGN_ENABLED"] !== "false",
       base_url: process.env["ACTIVECAMPAIGN_API_URL"] || "",
       api_key: process.env["ACTIVECAMPAIGN_API_KEY"] || "",
       list_id: process.env["ACTIVECAMPAIGN_LIST_ID"] || "",
-      default_state_code: process.env["ACTIVECAMPAIGN_STATE_CODE"] || "TX"
+      default_state_code: process.env["ACTIVECAMPAIGN_STATE_CODE"] || "TX",
+      source_tag: process.env["ACTIVECAMPAIGN_SOURCE_TAG"] || "Source-BrunoFineProperties-IDX",
+      list_name: process.env["ACTIVECAMPAIGN_LIST_NAME"] || "Bruno Fine Properties - IDX Leads"
    },
    ngrok: {
       authtoken: process.env["NGROK_AUTHTOKEN"] || ""
    },
    eventsCollection: {
       defaultEventFields: {
-         source: process.env["BOSS_DEFAULT_SOURCE"] || "example.tld"
+         source: process.env["BOSS_DEFAULT_SOURCE"] || "brunofineproperties.com"
       },
       defaultPersonFields: {
-         assignedTo: process.env["BOSS_DEFAULT_ASSIGNED_TO"] || "Default Agent",
-         tags: process.env["BOSS_DEFAULT_TAGS"]?.split(",") || [process.env["APP_ENVIRONMENT"] || "dev"]
+         tags: process.env["BOSS_DEFAULT_TAGS"]?.split(",") || ["Source-BrunoFineProperties-IDX"]
       },
-      defaultBoardId: process.env["SETTINGS_EVENTS_COLLECTOR_DEFAULT_BOARD_ID"] || "12",
+      defaultBoardId: process.env["SETTINGS_EVENTS_COLLECTOR_DEFAULT_BOARD_ID"] || "147",
       urlHost: process.env["SETTINGS_EVENTS_COLLECTOR_URL_HOST"] || undefined,
-      propertyUrl: process.env["BOSS_PROPERTY_URL"] || "https://example.tld/listing/[MLS_NUMBER]?boardId=[BOARD_ID]",
-      clientUrl: process.env["BOSS_CLIENT_URL"] || "https://example.tld/agent/client/[CLIENT_ID]",
-      estimateUrl: process.env["BOSS_ESTIMATE_URL"] || "https://example.tld/estimate/[ESTIMATE_ID]",
+      propertyUrl: process.env["BOSS_PROPERTY_URL"] || "/listing/[MLS_NUMBER]?boardId=[BOARD_ID]",
+      clientUrl: process.env["BOSS_CLIENT_URL"] || "/agent/client/[CLIENT_ID]",
+      estimateUrl: process.env["BOSS_ESTIMATE_URL"] || "/estimate?ulid=[ULID]",
       savedSearchUrl: process.env["BOSS_SAVED_SEARCH_URL"] || "",
       customFieldsStrategy: process.env["BOSS_CUSTOM_FIELDS_STRATEGY"],
       reportClientViewEstimate: process.env["BOSS_REPORT_CLIENT_VIEW_ESTIMATE"] === "true"
@@ -472,12 +447,15 @@ assert(config.mapbox.access_token, "No MAPBOX_ACCESS_TOKEN env variable");
 assert(config.repliers.api_key, "No REPLIERS_API_KEY env variable");
 assert(config.auth.jwt.privateKey, "No JWT_PRIVATE_KEY env variable");
 assert(config.auth.jwt.publicKey, "No JWT_PUBLIC_KEY env variable");
-if (config.boss.webhook.enabled) {
-   assert(config.boss.system !== '', "Please, specify some unique BOSS_SYSTEM to avoid issues with outher developers");
-   if (config.boss.webhook.use_ngrok) {
-      assert(config.ngrok.authtoken, "No NGROK_AUTHTOKEN env variable");
-   }
+
+// ActiveCampaign is now the only CRM. Fail fast in non-localhost if AC is
+// enabled but missing credentials, so silent-AC-failures don't ship to prod.
+if (config.activecampaign.enabled && process.env["APP_ENVIRONMENT"] !== "localhost") {
+   assert(config.activecampaign.base_url, "No ACTIVECAMPAIGN_API_URL env variable (AC is enabled)");
+   assert(config.activecampaign.api_key,  "No ACTIVECAMPAIGN_API_KEY env variable (AC is enabled)");
+   assert(config.activecampaign.list_id,  "No ACTIVECAMPAIGN_LIST_ID env variable (AC is enabled)");
 }
+
 if (process.env["APP_ENVIRONMENT"] !== "localhost") {
    assert(process.env["GOOGLE_CREDENTIALS"], "No GOOGLE_CREDENTIALS env variable");
 }
